@@ -1,0 +1,395 @@
+---
+title: "tidyverse data manipulation"
+output: html_notebook
+---
+
+
+```{r}
+if (!require("tidyverse")) {
+  install.packages("tidyverse", dependencies=TRUE)
+  library(tidyverse)
+}
+
+if (!require("tidyr")) {
+  install.packages("tidyr", dependencies=TRUE)
+  library(tidyr)
+}
+if (!require("dplyr")) {
+  install.packages("dplyr", dependencies=TRUE)
+  library(dplyr)
+}
+if (!require("readr")) {
+  install.packages("readr", dependencies=TRUE)
+  library(readr)
+}
+```
+```{r}
+ext_tracks_file <- "data/Rprogenv//ebtrk_atlc_1988_2015.txt"
+
+# Create a vector of the width of each column
+ext_tracks_widths <- c(7, 10, 2, 2, 3, 5, 5, 6, 4, 5, 4, 4, 5, 3, 4, 3, 3, 3,
+                       4, 3, 3, 3, 4, 3, 3, 3, 2, 6, 1)
+
+# Create a vector of column names, based on the online documentation for this data
+ext_tracks_colnames <- c("storm_id", "storm_name", "month", "day",
+                         "hour", "year", "latitude", "longitude",
+                         "max_wind", "min_pressure", "rad_max_wind",
+                         "eye_diameter", "pressure_1", "pressure_2",
+                         paste("radius_34", c("ne", "se", "sw", "nw"), sep = "_"),
+                         paste("radius_50", c("ne", "se", "sw", "nw"), sep = "_"),
+                         paste("radius_64", c("ne", "se", "sw", "nw"), sep = "_"),
+                         "storm_type", "distance_to_land", "final")
+
+# Read the file in
+ext_tracks <- read_fwf(ext_tracks_file, fwf_widths(ext_tracks_widths, ext_tracks_colnames),na="-99")
+
+ext_tracks
+```
+# Piping
+
+The dplyr and tidyr functions are often used in conjunction with piping, which is done with the %>% function from the **magrittr** package. Piping can be done with many R functions, but is especially common with dplyr and tidyr functions. The concept is straightforward - the pipe passes the dataframe output that results from the function right before the pipe to input it as the first argument of the function right after the pipe. Here is the generic overview of how this works in code, for  a pseudo-function named function that inputs a dataframe as its first argument:
+
+**without piping**
+function(dataframe, argument_2, argument_3)
+
+**with piping**
+dataframe %>%
+    function(argument_2, argument_3)
+
+For example, without piping, if you wanted to see the time, date, and maximum winds for Katrina from first three rows of the ext_tracks hurricane data, you could run:
+```{r}
+katrina <- filter(ext_tracks, storm_name == "KATRINA")
+katrina_reduced <- select(katrina, month, day, hour, max_wind)
+head(katrina_reduced, 3)
+```
+In this code, you are creating new R objects at each step, which makes the code cluttered and also requires copying the dataframe several times into memory. As an alternative, you could just wrap one function inside another:
+```{r}
+head(select(filter(ext_tracks, storm_name == "KATRINA"), month, day, hour, max_wind), 3)
+```
+This avoids re-assigning the dataframe at each step, but quickly becomes ungainly, and it's easy to put arguments in wrong layer of parentheses. Piping avoids these problems, since at each step you can send the output from the last function into the next function as the next function's first argument:
+```{r}
+ext_tracks %>% 
+    filter(storm_name == "KATRINA") %>%
+    select(month, day, hour, max_wind) %>%
+    head(3)
+```
+# Summarizing data
+
+The dplyr and tidyr packages have numerous functions (sometimes referred to as "verbs") for cleaning up data. We'll start with the functions to summarize data. The primary of these is summarize, which inputs a dataframe and creates a new dataframe with the requested summaries. In conjunction with summarize, you can use other functions from dplyr (e.g., n, which counts the number of observationss in a given column) to create this summary. You can also use R functions from other packages or base R functions to create the summary. For example, say we want a summary of the number of observations in the ext_tracks hurricanes dataset, as well as the highest measured maximum windspeed (given by the column max_wind in the dataset) in any of the storms, and the lowest minimum pressure (min_pressure). To create this summary, you can run:
+```{r}
+ext_tracks %>%
+    summarize(n_obs = n(),
+              worst_wind = max(max_wind),
+              worst_pressure = min(min_pressure))
+```
+This summary provides particularly useful information for this example data, because it gives an unrealistic value for minimum pressure (0 hPa). This shows that this dataset will need some cleaning. The highest wind speed observed for any of the storms, 160 knots, is more reasonable. You can also use summarize with functions you've written yourself, which gives you a lot of power in summarizing data in interesting ways. As a simple example, if you wanted to present the maximum wind speed in the summary above using miles per hour rather than knots, you could write a function to perform the conversion, and then use that function with the summarize call:
+```{r}
+knots_to_mph <- function(knots) {
+    mph <- 1.152 * knots
+}
+
+ext_tracks %>%
+    summarize(n_obs = n(),
+              worst_wind = knots_to_mph(max(max_wind)),
+              worst_pressure = min(min_pressure))
+```
+So far we've only used summarize to create a single-line summary of the dataframe. In other words, the summary functions are supplied accross the entire dataset, to return a single value for each summary statistic. However, often you might want summaries stratified by a certain grouping characteritic of the data. For the hurricane data, for example, you might want to get the worst wind and worst pressure by storm, rather than across all storms. You can do this by grouping your dataframe by one of its column variables, using the function group_by, and then using summarize. The group_by function does not make a visible change to a dataframe, although you can see, if you print out a grouped dataframe, that the new grouping variable will be listed under "Groups" at the top of a printout:
+```{r}
+ext_tracks %>%
+    group_by(storm_name, year) %>%
+    head()
+```
+As a note, since hurricane storm names repeat at regular intervals until they are retired, to get a separate summary for each unique storm, this example requires grouping by both storm_name and year. Even though applying the group_by function does not cause a noticeable change to the dataframe itself, you'll notice the difference in grouped and ungrouped dataframes when you summarize on the dataframe. If a dataframe is grouped, all summaries are calculated and given separately for each unique value of the grouping variable:
+```{r}
+ext_tracks %>%
+    group_by(storm_name, year) %>%
+    summarize(n_obs = n(),
+              worst_wind = max(max_wind),
+              worst_pressure = min(min_pressure))
+```
+This grouping/summarizing combination can be very useful for quickly plotting interesting summaries of a dataset. For example, to plot a histogram of maximum wind speed observed for each storm, you could run:
+```{r}
+library(ggplot2)
+ext_tracks %>%
+    group_by(storm_name) %>%
+    summarize(worst_wind = max(max_wind)) %>%
+    ggplot(aes(x=worst_wind)) + geom_histogram()
+```
+You cannot make changes to a variable that is being used to group a dataframe. If you try, you will get the error: 
+
+Error:cannot modify grouping variable. If you get this error, use the ungroup function to remove grouping within a dataframe, and then you will be able to mutate any of the variable in the data.
+
+# Selecting and filtering data
+
+When cleaning up data, you will need to be able to create subsets of the data, by selecting certain columns or filtering down to certain rows. These actions can be done using the dplyr functions select and filter. The select function subsets certain columns of a dataframe. The most basic way to use select is select certain columns by specifying their full column names. For example, to select the storm name, date, time, latitude, longitude, and maximum wind speed from the ext_tracks dataset, you can run:
+```{r}
+ext_tracks %>%
+    select(storm_name, month, day, hour, year, latitude, max_wind)
+```
+There are several functions you can use with select that give you more flexibility, and so allow you to select columns without specifying the full names of each column. For example, the starts_with function can be used within a select function to pick out all the columns that start with a certain text string. As an example of using starts_with in conjunction with select, in the ext_tracks hurricane data, there are a number of columns that say how far from the storm center winds of certain speeds extend. Tropical storms often have asymmetrical wind fields, so these wind radii are given for each quadrant of the storm (northeast, southeast, northwest, southwest of the storm's center). All of the columns with the radius to which winds of 34 knots or more extend with "radius_34". To get a dataset with storm names, location, and radii of winds of 34 knots, you  could run:
+```{r}
+ext_tracks %>%
+    select(storm_name, latitude, longitude, starts_with("radius_34"))
+```
+Other functions that can be used with select in a similar way include:
+
+1. ends_with: Select all columns that end with a certain string (for example, select(ext_tracks,
+    ends_with("ne")) to get all the wind radii for the northeast quadrant of a storm for the
+    hurricane example data)
+    
+2. contains: Select all columns that include a certain string (select(ext_tracks, contains("34")) to
+    get all wind radii for 34-knot winds)
+    
+3. matches: Select all columns that match a certain relative expression (select(ext_tracks, 
+    matches("_[0-9][0-9]_")) to get all columns where the column name includes two numbers between
+    two underscores, a pattern that matches all of the wind radii columns)
+
+While select picks out certain columns of the data frame, filter picks out certain rows. With filter
+you can specify certain conditions using R's logical operators, and the function will return 
+rows that meet those conditions.
+
+R's logical operators include:
+Operator         Meaning                            Example
+==               Equals                             storm_name == "KATRINA"
+!=               Does not equal                     min_pressure != 0
+>                Greater than                       latitude > 25
+>=               Greater than or equal to           max_wind >= 160
+<                Less than                          min_pressure < 900
+<=               Less than or equal to              distance_to_land <= 0
+%in%             Included in                        storm_name %in% c("KATRINA", "ANDREW")
+is.na()          Is a missing value                 is.na(radius_34_ne)
+
+If you are ever unsure of how to write a logical statement, but know how to write its opposite, 
+you can use the ! operator to negate the whole statement. For example, if you wanted to get all
+storms except those named "KATRINA" and "ANDREW", you could use 
+!(storm_name %in% c("KATRINA","ANDREW")). A common use of this is to identify observations with 
+non-missing data (e.g., !(is.na(radius_34_ne))).
+
+A logical statement, run by itself on a vector, will return a vector of the same length with
+TRUE every time the condition is met and FALSE every time it is not.
+```{r}
+head(ext_tracks$hour)
+```
+```{r}
+head(ext_tracks$hour == "00")
+```
+When you use a logical statement within filter, it will return just the rows where the logical statement is true:
+```{r}
+ext_tracks %>%
+    select(storm_name, hour, max_wind) %>%
+    head(9)
+```
+```{r}
+ext_tracks %>%
+  select(storm_name, hour, max_wind) %>%
+  filter(hour == "00") %>%
+  head(3)
+```
+Filtering can also be done after summarizing data. For example, to determine which storms had maximum speed equal to or above 160 knots, run:
+```{r}
+ext_tracks %>%
+  group_by(storm_name, year) %>%
+  summarize(worst_wind = max(max_wind)) %>%
+  filter(worst_wind >= 160)
+```
+If you would like to string several logical conditions together and select rows where all or any of the conditions are true, you can use the "and" (&) or "or" (|) operators. For example, to pull out observations for Hurricane Andrew when it was at or above Category 5 strength (137 knots or higher), you could run:
+```{r}
+ext_tracks %>%
+    select(storm_name, month, day, hour, latitude, max_wind) %>%
+    filter(storm_name == "ANDREW" & max_wind >= 137)
+```
+Some common errors that come up when using logical operators in R are:
+
+1. If you want to check that two things are equal, make sure you use double equal signs (==), not a 
+    single one. At best, a single equal sign won't work; in some cases, it will cause a variable to
+    be re-assigned (= can be used for assignment, just like <- ).
+
+2. If you are trying to check if one thing is equal to one of several things, use %in% rather than ==.
+    For example, if you want to filter to rows of ext_tracks with storm names of "KATRINA" and "ANDREW"
+    you need to use storm_name %in% c("KATRINA", "ANDREW"), not storm_name == c("KATRINA", "ANDREW").
+
+3. If you want to identify observations with missing values (or without missing values), you must use
+    the is.na function, not == or !=. For example, is.na(radius_34_ne) will work, 
+    but radius_34_na == NA will not.
+
+# Adding, changing, or renaming columns
+The mutate function in dplyr can be used to add new columns to a dataframe or change existing columns in the dataframe. As an example, I'll use the worldcup dataset from the package **faraway**, which statistics from the 2010 World Cup. To load this example dataframe, run:
+```{r}
+library(faraway)
+data(worldcup)
+```
+This dataset has observations by player, including the player's team, position, amount of time played in this World Cup, and number of shots, passes, tackles, and saves. This dataset is currently not tidy, as it has one of the variables (player's names) as row names, rather than as a column of the dataframe. You can use the mutate function to move the player names to its own column.
+```{r}
+rownames(worldcup) # checking row names
+```
+```{r}
+worldcup <- worldcup %>%
+    mutate(player_name = rownames(worldcup))
+
+worldcup %>% slice(1:3)
+```
+```{r}
+rownames(worldcup) # checking row names
+```
+You can also use mutate in coordination with group_by to create new columns that give summaries within certain windows of the data. For example, the following code will add a column with the average number of shots for a player's position added as a new column. While this code is summarizing the original data to generate the values in this column, mutate will add these repeated summary values to the original dataset by group, rather than returning a dataframe with a single row for each of the grouping variables (try replacing mutate with summarize in this code to make sure you understand the difference).
+```{r}
+worldcup <- worldcup %>%
+  group_by(Position) %>%
+  mutate(ave_shots = mean(Shots)) %>%
+  ungroup()
+
+worldcup %>% slice(1:3)
+```
+worldcup <- worldcup %>%
+                group_by(Position) %>%
+                summarize(ave_shots = mean(Shots)) %>%
+                ungroup()
+                
+worldcup %>% slice(1:3)
+
+If there is a column that you want to rename, but not change, you can use the rename function.
+For example:
+```{r}
+worldcup %>%
+    rename(Name = player_name) %>%
+    slice(1:3)
+```
+```{r}
+head(worldcup)
+```
+# Spreading and gathering data
+The tidyr package includes functions to transfer a dataframe between long and wide formats. The data is first in an untidy format:
+```{r}
+data("VADeaths")
+head(VADeaths)
+```
+After changing the age categories from row names to a variable (which can be done with the mutate function), the key problem with the tidyness of the data is that the variables of urban/rural and male/female are not in their own columns, but rather are embedded in the structure of the columns. To fix this, you can use the gather function to gather values spread across several columns into a single column, with the column names gathered into a "key" column. When gathering, exclude any columns that you don't want "gathered" (age in this case) by including the column names with a minus sign in the gather function. For example:
+```{r}
+data("VADeaths")
+library(tidyr)
+
+rownames(VADeaths)
+```
+```{r}
+colnames(VADeaths)
+```
+```{r}
+# Move age from row names into a column
+VADeaths <- VADeaths %>%
+    tbl_df() %>%
+    mutate(age = row.names(VADeaths))
+
+VADeaths
+```
+```{r}
+rownames(VADeaths)
+```
+```{r}
+colnames(VADeaths)
+```
+```{r}
+# Now gather everything but age to tidy data
+VADeaths %>%
+    gather(key = key, value = death_rate, -age)
+```
+Even if your data is in a tidy format, gather is occasionally useful for pulling data together to take advantage of faceting, or plotting separate plots based on a grouping variable. For example if you'd like to plot the relationship between the time a player in the World Cup and his number of saves, tackles, and shots, with a separate graph for each position, you can use gather to pull all the numbers of saves, tackles, and shots into a single column (Number) and then use faceting to plot them as separate graphs.
+```{r}
+library(tidyr)
+library(ggplot2)
+worldcup %>%
+    select(Position, Time, Shots, Tackles, Saves) %>%
+    gather(Type, Number, -Position, -Time) %>%
+    ggplot(aes(x=Time, y=Number)) + geom_point() + facet_grid(Type ~ Position)
+```
+The spread function is less commonly needed to tidy data. It can, however, be useful for creating summary tables. For example, if you wanted to print a table of the average number and range of passes by position for the top four teams in this World Cup (Spain, Netherlands, Uruguay, and Germany), you could run:
+```{r}
+library(knitr)
+
+# Summarize the data to create the summary statistics you want
+wc_table <- worldcup %>%
+    filter(Team %in% c("Spain", "Netherlands", "Uruguay", "Germany")) %>%
+    select(Team, Position, Passes) %>%
+    group_by(Team, Position) %>%
+    summarize(ave_passes = mean(Passes),
+              min_passes = min(Passes),
+              max_passes = max(Passes),
+              pass_summary = paste0(round(ave_passes), "(",
+                                    min_passes, ",", max_passes, ")")) %>%
+    select(Team, Position, pass_summary)
+
+# What the data looks like before using spread
+wc_table
+```
+```{r}
+# Use spread to create a prettier format for a table
+wc_table %>%
+    spread(Position, pass_summary) %>%
+    kable()
+```
+Notice in this example how spread has been used at the very end of the code to convert the summarized data into a shape that offers a better tabular presentation for a report. In the spread call, you first specify the name of the column to use for the new column names (Position in this example) and then specify the column to use for the cell values (pass_summary here). In this code, I've used the kable function from the **knittr** package to create the summary table in a table format, rather than as basic R output. This function is very useful for formatting basic tables in R markdown documents. For more complex tables, check out the **pander** and **xtable** packages.
+
+# Merging datasets
+Often, you will have data in two separate datasets that you'd like to combine based on a common variable or variables. For example, for the World Cup example data we've been using, it would be interesting to add in a column with the final standing of each player's team. We've included data with that information in a file called "team_standings.csv", which can be read into the R object team_standings with the call:
+```{r}
+team_standings <- read_csv("data/Rprogenv/team_standings.csv")
+team_standings %>% slice(1:4)
+```
+This dataframe has one observation per team, and the team names are consistent with the team names in the worldcup dataframe. You can use the different functions from the x_join family to merge this team standing data with the player statistics in the worldcup dataframe. Once you've done that, you can use other data cleaning tools from **dplyr** to quickly pull and explore interesting parts of the dataset. The main arguments for the x_join functions are the object names of the two dataframes to join and by, which specifies which variables to use to match up observations from the two dataframes. There are several functions in the x_join family. These functions all merge together two dataframes; they differ in how they handle observations that exist in one but not both dataframes. Here are the four functions from this family that you will likely use the most often:
+
+**Function**            **What it includes in merged dataframes**
+
+left_join               Includes all observations in the left df, whether or not there is a match in right df.
+
+right_join              Includes all observations in the right df, whether or not there is a match in left df.
+
+inner_join              Includes only observations that are in both dataframes.
+
+full_join               Includes all observations from both dataframes.
+
+In this tabel, the "left" dataframe refers to the first dataframe input in the x_join call, while the "right" dataframe refers to the second dataframe input into the function.
+```{r}
+left_join(worldcup, team_standings, by="Team")
+```
+the worldcup data frame is the "left" data frame and the team_standings data frame is the "right"
+data frame. Therefore, using left_join would include all the rows from worldcup, whether or not the
+player had a team listed in team_standings, while right_join would include all the rows from
+team_standings, whether or not there were any players from that team in worldcup.
+Remember, that if you are using piping, the first data frame ("left" for these functions) is by 
+default the data frame created by the code right before the pipe. When you merge data frames as a
+step in piped code, therefore, the "left" data frame is the one piped into the function while the
+"right" data frame is the one stated in the *_join function call.
+As an example of merging, say you want to create a table of the top 5 players by shots on goal, 
+as well as the final standing for each of these player's teams, using the worldcup and team_standings
+data. You can do this by running:
+```{r}
+data(worldcup)
+worldcup %>%
+    mutate(Name = rownames(worldcup), Team = as.character(Team)) %>%
+    select(Name, Position, Shots, Team) %>%
+    arrange(desc(Shots)) %>%
+    slice(1:5) %>%
+    left_join(team_standings, by = "Team") %>% # Merge in team standings
+    rename("Team Standing" = Standing) %>%
+    kable()
+```
+ In addition to the merging in this code, there are a few other interesting things to point out:
+ 
+1. The code uses the as.character function within a mutate call to change the team name from a factor
+    to a character in the worldcup dataframe. When merging two data frames, it's safest if the column
+    you're using to merge has the same class in each data frame. The "Team" column is a character class
+    in the team_standings data frame but a factor class in the worldcup data frame, so this call
+    converts that column to a character class in worldcup. The left_join function will still perform
+    a merge if you don't include this call, but it will throw a warning that it is coercing the column
+    in worldcup to a character vector. It's generally safer to do this yourself explicitly.
+    
+2. It uses the select function both to remove columns that we're not interested in and also to put the
+    columns we want to keep in the order we'd like for the final table.
+    
+3. It uses arrange followed by slice to pull out the top 5 players and order them by number of shots.
+
+4. For one of the column names, we want to use "Team Standing" rather that the current column name
+    "Standing". This code uses rename at the very end to make this change right before creating the
+    table. You can also use the col.names argument in the kable function to customize all the column
+    names in the final table, but this rename call is a quick fix since we just want to change one
+    colunm name.
+

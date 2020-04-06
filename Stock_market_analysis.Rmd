@@ -1,0 +1,115 @@
+---
+title: "Stock Market Analysis"
+output: html_notebook
+---
+# Getting the stock data
+Stock data can be obtained from [Yahoo Finance](http://finance.yahoo.com/), [Google Finance](http://finance.google.com/) or others. The **quantmod** package provides easy access to Yahoo and Google Finance data, along with other sources. 
+```{r}
+# Getting quantmod
+if(!require("quantmod")) {
+    install.packages("quantmod", dependencies=TRUE)
+    library(quantmod)
+}
+
+if (!require("TTR")) {
+  install.packages("TTR", dependencies=TRUE)
+  library(TTR)
+}
+
+```
+
+```{r}
+start <- as.Date("2019-01-01")
+end <- as.Date("2020-03-31")
+```
+We will use the **getSymbols** function from **quantmod** package and pass a string as a first argument to identify the desired ticker symbol and specify date range.
+```{r}
+getSymbols("MSFT", src="yahoo", from =  start, to = end, env=parent.frame(), auto.assign=TRUE)
+```
+```{r}
+class(MSFT)
+```
+
+```{r}
+head(MSFT)
+```
+As you see above, getSymbols() created in the global environment an object called MSFT (named automatically after the ticker symbol of the security retrieved) that is of the **xts** class (which is also a **zoo**-class object).
+
+# Visualizing stock data
+```{r}
+plot(MSFT[, "MSFT.Close"], main = "Microsoft")
+```
+A linechart is fine, but there are at least four variables involved for each date (open, high, low, and close), and we would like to have some visual way to see all four variables that does not require plotting four separate lines. Financial data is often plotted with a **Japanese candlestick plot**, so named because it was first created by 18th century Japanese rice traders. Use the function candleChart() from **quantmod** to create such a chart.
+```{r}
+candleChart(MSFT, up.col="green", dn.col="red", theme="white")
+```
+Let's get other companies' stock trend too.
+
+```{r}
+getSymbols(c("AAPL", "GOOG", "UBER", "LYFT", "AMZN", "FB", "TSLA", "NFLX", "INTC", "MDT", "JNJ", "AMD", "MU", "BAC", "BA", "DIS", "KO",
+             "PEP", "WFC", "JPM"), src = "yahoo", from = start, to = end, env=parent.frame(), auto.assign=TRUE)
+```
+Create an xts object (xts is loaded with quantmod) that contains closing prices for AAPL, MSFT, GOOG, TSLA and BA
+```{r}
+stocks <- as.xts(data.frame(AAPL = AAPL[, "AAPL.Close"], MSFT = MSFT[, "MSFT.Close"], 
+                            GOOG = GOOG[, "GOOG.Close"], BA = BA[, "BA.Close"], TSLA = TSLA[, "TSLA.Close"]))
+head(stocks)
+```
+Create a plot showing all series as lines; must use as.zoo to use the zoo method for plot, which allows for multiple series to be plotted on same plot
+```{r}
+plot(as.zoo(stocks), screens=1, lty=1:3, xlab="Date", ylab="Stock Closing Price")
+legend("right", c("AAPL", "MSFT", "GOOG", "BA", "TSLA"), lty=1:3, cex=0.5)
+```
+Oops! While absolute price is important when trading, we are more concerned about the relative change of an asset rather than its absolute price. One solution would be to use two different scales when plotting the data; one scale will be used by Apple, Microsoft and Boeing and other by Tesla and Google.
+```{r}
+plot(as.zoo(stocks[, c("AAPL.Close", "MSFT.Close", "BA.Close")]), screens = 1, lty = 1:2, 
+    xlab = "Date", ylab = "Price")
+par(new = TRUE)
+plot(as.zoo(stocks[, c("GOOG.Close", "TSLA.Close")]), screens = 1, lty = 3, xaxt = "n", yaxt = "n", 
+    xlab = "", ylab = "")
+axis(4)
+mtext("Price", side = 4, line = 3)
+legend("topleft", c("AAPL (left)", "MSFT (left)", "BA (left)", "GOOG", "TSLA"), lty = 1:3, cex = 0.5)
+```
+Well, this solution is little difficult and the visualization is also messy. For a little bit better solution, we can transform as follows:
+```{r}
+# Install pipe operator
+if (!require("magrittr")) {
+    install.packages("magrittr")
+    library(magrittr)
+}
+```
+```{r}
+stock_return = apply(stocks, 1, function(x) {x / stocks[1,]}) %>%
+               t %>% as.xts
+
+head(stock_return)
+```
+```{r}
+plot(as.zoo(stock_return), screens = 1, lty = 1:3, xlab = "Date", ylab = "Return")
+legend("topleft", c("AAPL", "MSFT", "GOOG", "BA", "TSLA"), lty = 1:3, cex = 0.5)
+```
+Taking the log of the change
+```{r}
+stock_change = stocks %>% log %>% diff
+head(stock_change)
+```
+```{r}
+plot(as.zoo(stock_change), screens = 1, lty = 1:3, xlab = "Date", ylab = "Log Difference")
+legend("topleft", c("AAPL", "MSFT", "GOOG","BA", "TSLA"), lty = 1:3, cex = 0.5)
+```
+# Moving Averages
+**quantmod** allows adding moving averages to charts via **addSMA()** function.
+```{r}
+candleChart(BA, up.col="green", dn.col="red", theme="white")
+addSMA(n=60)
+```
+```{r}
+candleChart(BA, up.col="green", dn.col="red", theme="white")
+addSMA(n = c(20, 60, 100, 200))
+```
+
+```{r}
+sessionInfo()
+```
+

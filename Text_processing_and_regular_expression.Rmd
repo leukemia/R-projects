@@ -1,0 +1,341 @@
+---
+title: "Text Processing and Regular Expression"
+output: html_notebook
+---
+
+# Text manipulation functions in R
+You can combine several strings using the **paste()** function: 
+
+```{r}
+paste("Square", "Circle", "Triangle")
+```
+By default the **paste()** function inserts a space between each word. You can insert a different string between each word by specifying the **sep** argument.
+```{r}
+paste("Square", "Circle", "Triangle", sep="+")
+```
+A shortcut for combining all of the string arguments without any characters in between each of them is to use **paste0()** function.
+```{r}
+paste0("Square", "Circle", "Triangle")
+```
+You can also provide a vector of strings as an argument to paste().
+```{r}
+shapes <- c("Square", "Circle", "Triangle")
+paste("My favourite shape is a", shapes)
+```
+```{r}
+two_cities <- c("best", "worst")
+paste("It was the", two_cities, "of times.")
+```
+As you can see, all of the possible string combinations are produced when you provide a vector of strings as an argument to paste(). You can also collapse all of the elements of a vector of strings into a single string by specifying the collapse argument:
+```{r}
+paste(shapes, collapse = " ")
+```
+**nchar()** function counts the number of characters in a string:
+```{r}
+nchar("asdflkakshfajhslkjkigajosnfkasjfklj")
+```
+**toupper()** and **tolower()**
+```{r}
+cases <- c("CAPS", "low", "Title")
+tolower(cases)
+```
+```{r}
+toupper(cases)
+```
+# Regular Expressions
+One of the most basic functions in R that uses regular expressions is the **grepl()** function, which takes two arguments: a regular expression and a string to be searched. If the string contains the specified regular expression then **grepl()** will return TRUE, otherwise it will return FALSE.
+```{r}
+regular_expression <- "a"
+string_to_search <- "Maryland"
+grepl(regular_expression, string_to_search)
+```
+```{r}
+regular_expression <- "u"
+string_to_search <- "Maryland"
+grepl(regular_expression, string_to_search)
+```
+```{r}
+grepl("land", "Maryland")
+```
+```{r}
+grepl("ryla", "Maryland")
+```
+```{r}
+grepl("Marly", "Maryland")
+```
+There's a dataset that comes with R called state.name which is a vector of Strings, one for each state in the United States of America. We're going to use this vector in several of the following examples.
+```{r}
+state.name
+```
+The **metacharacter** that only consists of a period (".") represents any character other than a new line.
+```{r}
+grepl(".", "Maryland")
+```
+```{r}
+grepl(".", "*&2[0+,%<@#~|}")
+```
+```{r}
+grepl(".", "")
+```
+As you can see the period metacharacters is very liberal. This metacharacter is most useful when you don't care about a set of characters in a regular expression. For example:
+```{r}
+
+grepl("a.b", c("aaa", "aab", "abb", "acadb"))
+```
+You can specify a regular expression that contains a certain number of characters or metacharacters using the enumeration metacharacters. The + metacharacter indicates that one or more of the preceding expression should be presend and * indicates that zero or more of the preceding expression is present. Let's take a look at some examples using these metacharacters:
+
+Does "Maryland" contain one or more of "a"?
+```{r}
+grepl("a+", "Maryland")
+```
+Does "Maryland" contain one or more of "x"?
+```{r}
+grepl("x+", "Maryland")
+```
+Does "Maryland" contain one or more of "x"?
+```{r}
+grepl("x*", "Maryland")
+```
+You can also specify exact numbers of expressions using curly brackets {}. For example "a{5}" specifies "a exactly five times", "a{2,5}" specifies "a between 2 and 5 times", and "a{2,}" specifies "a at least 2 times". Let's take a look at some examples:
+
+Does "Mississippi" contain exactly 2 adjacent "s" ?
+```{r}
+grepl("s{2}", "Mississippi")
+```
+This is equivalent to the expression above:
+```{r}
+grepl("ss", "Mississippi")
+```
+Does "Mississippi" contain between 1 and 3 adjacent "s"?
+```{r}
+grepl("s{1,3}", "Mississippi")
+```
+Does "Mississippi" contain between 2 and 3 adjacent "s"?
+```{r}
+grepl("s{2,3}", "Mississippi")
+```
+Does "Mississippi" contain between 2 and 3 adjacent "i"?
+```{r}
+grepl("i{2,3}", "Mississippi")
+```
+Does "Mississippi" contain 2 adjacent "iss"?
+```{r}
+grepl("(iss){2}", "Mississippi")
+```
+Does "Mississippi" contain 2 adjacent "ss"?
+```{r}
+grepl("(ss){2}", "Mississippi")
+```
+Does "Mississippi" contain the pattern of an "i" followed by 2 of any character, with that pattern repeated three times adjacently?
+```{r}
+grepl("(i.{2}){3}", "Mississippi")
+```
+In the last three examples we used parentheses () to create a **capturing group**. A capturing group allows  you to use quantifiers on other regular expressions. In the last example we first created the regex "i.{2}" which matches i followed by any two characters ("iss" or "ipp"). We then used a capture group to wrap that regex, and to specify exactly three adjacent occurences of that regex. You can specify sets of characters with regular expressions, some of which come built in, but you can build your own character sets too. First we'll discuss the build in character sets: words("\\w"), digits ("\\d"), and whitespace characters ("\\s"). Words specify any letter, digit, or a underscore, digits specify the digits 0 through 9, and whitespace specifies line breaks, tabs, or spaces. Each of these character sets have their own complements: not words ("\\W"), not digits ("\\D"), and not whitespace characters ("\\S"). Each specifies all of the characters not included in their corresponding character sets. Let's take a look at a few examples:
+```{r}
+grepl("\\w", "abcdefghijklmnopqrstuvwxyz0123456789")
+```
+```{r}
+grepl("\\d", "0123456789")
+```
+```{r}
+grepl("\\s", "\n\t")
+```
+```{r}
+grepl("\\d", "abcdefghijklmnopqrstuvwxyz")
+```
+```{r}
+grepl("\\D", "abcdefghijklmnopqrstuvwxyz")
+```
+```{r}
+grepl("\\w", "\n\t")
+```
+You can also specify specific character sets u sing straight brackets []. For example a character set of just the vowels would look like: "[aeiou]". You can find the complement to a specific character by putting a carrot ^ after the first bracket. For example "[^aeiou]" matches all characters except the lowercase vowels. You can also specify ranges of characters using a hyphen - inside of the brackets. For example "[a-m]" matches all of the lowercase characters between a and m, while "[5-8]" matches any digit between 5 and 8 inclusive. Let's take a look at some examples using custom character sets:
+```{r}
+grepl("[aeiou]", "rhythms")
+```
+```{r}
+grepl("[^aeiou]", "rhythms")
+```
+```{r}
+grepl("[a-m]", "xyz")
+```
+```{r}
+grepl("[a-m]", "ABC")
+```
+```{r}
+grepl("[a-m]", "abc")
+```
+```{r}
+grepl("[a-mA-M]", "ABC")
+```
+```{r}
+grepl("[a-mA-M]", "ABV")
+```
+You might be wondering how you can use regular expressions to match a particular punctuation mark since many punctuation marks are used as metacharacters! Putting two backslashes before a punctuation mark that is also a metacharacter indicates that you are looking for the symbol and not the metacharacter meaning. For example "\\." indicates you are trying to match a period in a string.
+```{r}
+grepl("\\+", "tragedy + time = humor")
+```
+```{r}
+grepl("\\.", "http://www.vanderbilt.edu/")
+```
+There are also metacharacters for matching the beginning and the end of a string which are "^" and "$" respectively. Let's look at few examples:
+```{r}
+grepl("^a", c("bab", "aab"))
+```
+```{r}
+grepl("b$", c("bab", "aab"))
+```
+```{r}
+grepl("^[ab]+$", c("bab", "aab", "abc"))
+```
+```{r}
+grepl("[ab]+$", c("bab", "aab", "abc"))
+```
+The last metacharacter we'll discuss is the OR metacharacter ("|"). The OR metacharacter matches either the regex on the left or the regex on the right side of this character. Few examples:
+```{r}
+grepl("a|b", c("abc", "bcd", "cde"))
+```
+```{r}
+grepl("North|South", c("South Dakota", "North Carolina", "West Virginia"))
+```
+Finally we've learned enough to create a regular expression that matches all state names that both begin and end with a vowel:
+1. We match the beginning of a string.
+2. We create a character set of just capitalized vowels.
+3. We specify one instance of that set.
+4. Then any number of characters until:
+5. A character set of just lowercase vowels.
+6. We specify one instance of that set.
+7. We match the end of a string.
+```{r}
+start_end_vowel <- "^[AEIOU]{1}.+[aeiou]{1}$"
+vowel_state_lgl <- grepl(start_end_vowel, state.name)
+vowel_state_lgl
+```
+```{r}
+state.name[vowel_state_lgl]
+```
+```{r}
+# Metacharacter       Meaning
+# .                   Any Character
+# \w                  A Word
+# \W                  Not a Word
+# \d                  A Digit
+# \D                  Not a Digit
+# \s                  Whitespace
+# \S                  Not Whitespace
+# [xyz]               A Set of Characters
+# [^xyz]              Negation of Set
+# [a-z]               A Range of Characters
+# ^                   Beginning of String
+# $                   End of String
+# \n                  Newline
+# +                   One or More of Previous
+# *                   Zero of More of Previous
+# ?                   Zero or One of Previous
+# |                   Either the Previous or the Following
+# {5}                 Exactly 5 of Previous
+# {2,5}               Between 2 and 5 or Previous
+# {2,}                More than 2 or Previous
+
+############################################################################
+######## RegEx Functions in R
+############################################################################
+# So far we've been using grepl() to see if a regex matches a string. There are a few other built in
+# regex functions you should be aware of. First we'll review our workhorse of this chapter, grepl()
+# which stands for "grep logical"
+
+grepl("Ii", c("Hawaii", "Illinois", "Kentucky")) # watch out for []. Compare this line with the next one.
+```
+```{r}
+grepl("[Ii]", c("Hawaii", "Illinois", "Kentucky"))
+```
+Then there's old fashioned grep() which returns the indices of the vector that match the regex.
+```{r}
+grep("[Ii]", c("Hawaii", "Illinois", "Kentucky"))
+```
+The sub() function takes as arguments a regex, a "replacement", and a vector of strings. This function will replace the first instance of that regex found in each string.
+```{r}
+sub("[Ii]", 3, c("Hawaii", "Illinois", "Kentucky"))
+```
+The gsub() function is nearly same as sub() except it will replace every instance of the regex that is matched in each string.
+```{r}
+gsub("[Ii]", 3, c("Hawaii", "Illinois", "Kentucky"))
+```
+The strsplic() function will split up strings according to the provided regex. If strsplit() is provided with a vector of strings, it will regurn a list of string vectors.
+```{r}
+two_s <- state.name[grep("ss", state.name)]
+two_s
+```
+
+```{r}
+strsplit(two_s, "ss")
+```
+# The **stringr** Package
+The **stringr** package, written by **Hadley Wickham**, is a part of Tidyverse group of R packages. This package takes a "data first" approach to functions involving regex, so usually the string is the first argument and the regex is the second argument. The majority of the function names in stringr begin with str_. The str_extract() function return the sub-string of a string that matches the provided regular expression.
+```{r}
+library(stringr)
+
+state_tbl <- paste(state.name, state.area, state.abb)
+state_tbl
+```
+```{r}
+str_extract(state_tbl, "[0-9]+")
+```
+The str_order() function returns a numeric vector that corresponds to the alphabetical order of the strings in the provided vector.
+```{r}
+head(state.name)
+```
+```{r}
+str_order(state.name)
+```
+```{r}
+state.abb
+```
+```{r}
+str_order(state.abb)
+```
+The str_pad() function pads string with other characters which is often useful when the string is going to be everntually printed for a person to read.
+```{r}
+str_pad("Thai", width=8, side="left", pad="-")
+```
+```{r}
+str_pad("Thai", width=8, side="right", pad="-")
+```
+```{r}
+str_pad("Thai", width=8, side="both", pad="-")
+```
+The str_to_title() function acts just like tolower() and toupper() except it puts strings into Title Case.
+```{r}
+cases <- c("CAPS", "low", "Title")
+str_to_title(cases)
+```
+The str_trim() function deletes whitespace from both sides of a string.
+```{r}
+to_trim <- c("    space", "the       ", "      final fromtier    ")
+str_trim(to_trim)
+```
+The str_wrap() function inserts newlines in strings so that when the string is printed each line's length is limited.
+```{r}
+pasted_states <- paste(state.name[1:20], collapse= " ")
+pasted_states
+```
+```{r}
+cat(str_wrap(pasted_states, width=80))
+```
+```{r}
+cat(str_wrap(pasted_states, width=30))
+```
+The word() function allows you to index each word in a string as if it were a vector.
+```{r}
+a_tale <- "It was the best of times it was the worst of times it was the age of \
+wisdom it was the age of foolishness"
+
+word(a_tale, 2)
+```
+```{r}
+word(a_tale, end=3)
+```
+```{r}
+word(a_tale, start=11, end=15)
+```
+

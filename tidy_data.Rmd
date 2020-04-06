@@ -1,0 +1,345 @@
+---
+title: "tidy data"
+output: html_notebook
+---
+
+
+
+```{r}
+if (!require("tidyverse")) {
+    install.packages("tidyverse", dependencies = TRUE)
+    library(tidyverse)
+}
+
+if (!require("tidyr")) {
+    install.packages("tidyr", dependencies=TRUE)
+    library(tidyr)
+}
+if (!require("dplyr")) {
+    install.packages("dplyr", dependencies=TRUE)
+    library(dplyr)
+}
+if (!require("readr")) {
+    install.packages("readr", dependencies=TRUE)
+    library(readr)
+}
+```
+**Reading data with tidyverse**
+
+```{r}
+VADeaths %>%
+  tbl_df() %>%
+  mutate(age = row.names(VADeaths)) %>%
+  gather(key, death_rate, -age) %>%
+  separate(key, c("urban", "gender"), sep = " ") %>%
+  mutate(age = factor(age), urban = factor(urban), gender = factor(gender))
+```
+
+#Reading tabular data with readr package
+
+The importance of the read_csv function is perhaps better understood from a historical perspective. R's builtin read.csv function similarly reads csv files, but the read_csv function in readr builds on that by removing some of the quirks and "gotchas" of read.csv as well as dramatically optimizing the speed with which it can read data into R. The read_csv function also adds some nice user-oriented features like a progress meter and a compact method for specifying column types.
+
+```{r}
+teams <- read_csv("data/Rprogenv/team_standings.csv")
+```
+```{r}
+teams
+```
+
+
+By default, read_csv will open a csv file and read it in line-by-line. It will also (by default), read in the first few rows of the table in order to figure out the type of each column (i.e. integer, character, etc.). In the code example above, you can see that read_csv has correctly assigned an integer class to the "Standing" variable in the input data and a character class to the "Team" variable.
+
+You can also specify the type of each column with the col_types argument. In general, it's a good idea to specify the column types explicitly. This rules out any possible guessing errors on the part of read_csv. Also, specifying the column types explicitly provides a useful safety check in case anything about the dataset should change without you knowing about it.
+```{r}
+teams <- read_csv("data/Rprogenv/team_standings.csv", col_types = "cc")
+```
+
+Note that the col_types argument accepts a compact representation. Here "cc" indicates that the first column is character and the second column is character (there are only two columns). Using the col_types argument is useful because often it is not easy to automatically figure out the type of a column by looking at a few rows (especially if a column has many missing values). The read_csv function will also read compressed files automatically. There is no need to decompress the file first or use the gzfile connection function. The following call reads a gzip-compressed CSV file containing download logs from the RStudio CRAN mirror.
+```{r}
+logs <- read_csv("data/Rprogenv/2016-07-20.csv.gz", n_max=10)
+```
+Note that the message ("Parsed with column specification:") printed after the call indicates that read_csv may have had some difficulty identifying the type of each column. This can be solved by using the col_types argument.
+```{r}
+logs <- read_csv("data/Rprogenv/2016-07-19.csv.gz", col_types="ccicccccci", n_max=10)
+logs
+```
+You can specify the column type in a more detailed fashion by using the various col_* functions. For example, in the log data above, the first column is actually a date, so it might make more sense to read it in as a Date variable. If we wanted to just read in that first column, we could do :
+```{r}
+logdates <- read_csv("data/Rprogenv/2016-07-19.csv.gz", col_types=cols_only(date=col_date()), n_max=10)
+logdates
+```
+Now the date column is stored as a Date object which can be used for relevant date-related computations (for example, see lubridate package). Note: The read_csv function has a progress option that defaults to TRUE. This option provides a nice progress meter while the CSV file is being read. However, if you are using read_csv in a function, or perhaps embedding it in a loop,it's probably best to set progress = FALSE.
+The readr package includes a variety of functions in theread_* family that allow you to read in data from different formats of flat files. The following table gives a guide to several functions in the read_* family.
+
+**readr function**
+read_csv ------Reads comma-separated file
+read_csv2------Reads semicolon-separated file
+read_tsv-------Reads tab-separated file
+read_delim-----General function for reading delimited files
+read_fwf-------Reads fixed width files
+read_log-------Reads log files
+
+#Reading web-based data
+The simplest way to read web-based data is if the data is available online as a flat file. 
+For example, the "Extended Best Tracks" for the North Atlantic are hurricane tracks that include 
+both the best estimate of the central location of each storm and also gives estimates of how far 
+winds of certain speeds extended from the storm's center in four quadrants of the storm (northeast, 
+northwest, southeast, southwest) at each measurement point.
+You can see this file online 
+http://rammb.cira.colostate.edu/research/tropical_cyclones/tc_extended_best_track_dataset/data/ebtrk_atlc_1988_2015.txt
+This file is also stored in data folder and the name of the file is "ebtrk_atlc_1988_2015.txt"
+How can you tell if you've found a flat file online? Here are a couple of clues:
+1. It will not have any formatting. Intead, it will look online as if you opened a file in a text editor on your own computer
+2. It will often have a web address that ends with a typical flat file extension (".csv", ".txt", or ".fwf", for example)
+
+Here is an of examples of flat file available online:
+https://www2.census.gov/geo/docs/reference/cenpop2010/county/CenPop2010_Mean_CO08.txt
+This file is also stored in data folder and the name of the file is "CenPop2010_Mean_CO08.txt"
+
+If you copy and paste the web address for this file, you'll see that the url for this example 
+hurricane data file is non-secure (starts with http:) and that it ends with a typical flat file 
+extension (.txt, in this case). You can read this file into your R session using the same readr 
+function that you would use to read it in if the file were stored on your computer.
+First you can create an R object with the filepath to the file. In the case of online files, 
+that's the url. To fit the long web address comfortably in an R script window, you can use the 
+paste0 function to paste pieces of the web address together.
+
+```{r}
+ext_tracks_file <- paste0("http://rammb.cira.colostate.edu/research/",
+                          "tropical_cyclones/tc_extended_best_track_dataset/",
+                          "data/ebtrk_atlc_1988_2015.txt")
+```
+Next since this web-based file is a fixed width file, you'll need to define the width of each column, 
+so that R will know where to split between columns. You can then use the read_fwf function from the 
+readr package to read the file into your R session. This data, like a lot of weather data, uses the 
+string "-99" for missing data, and you can specify that missing value character with the na argument 
+in read_fwf. Also, the online file does not include column names, so you'll have to use the data
+documentation file for the dataset to determine and set those yourself.
+Here is the data documentation file:
+http://rammb.cira.colostate.edu/research/tropical_cyclones/tc_extended_best_track_dataset/docs/ebtrk_readme.txt
+It is also saved in data folder and named as "ebtrk_readme.txt"
+
+Create a vector of the width of each column
+```{r}
+ext_tracks_widths <- c(7, 10, 2, 2, 3, 5, 5, 6, 4, 5, 4, 4, 5, 3, 4, 3, 3, 3,
+                       4, 3, 3, 3, 4, 3, 3, 3, 2, 6, 1)
+```
+Create a vector of column names, based on the online documentation for this data
+```{r}
+ext_tracks_colnames <- c("storm_id", "storm_name", "month", "day",
+                         "hour", "year", "latitude", "longitude",
+                         "max_wind", "min_pressure", "rad_max_wind",
+                         "eye_diameter", "pressure_1", "pressure_2",
+                         paste("radius_34", c("ne", "se", "sw", "nw"), sep = "_"),
+                         paste("radius_50", c("ne", "se", "sw", "nw"), sep = "_"),
+                         paste("radius_64", c("ne", "se", "sw", "nw"), sep = "_"),
+                         "storm_type", "distance_to_land", "final")
+```
+Read the file in from its url
+```{r}
+ext_tracks <- read_fwf(ext_tracks_file, 
+                       fwf_widths(ext_tracks_widths, ext_tracks_colnames), 
+                       na="-99")
+```
+```{r}
+ext_tracks[1:3, 1:9]
+```
+For some fixed width files, you may be able to save the trouble of counting column widths by using 
+the fwf_empty function in the readr package. This function guesses the widths of columns based on 
+the positions of empty columns. However, the example hurricane dataset we are using here is a bit 
+too messy for this - in some cases, there are values from different columns that are not separated 
+by white space. Just as it is typically safer for you to specify column types yourself, rather than 
+relying on R to correclty guess them, it is also safer when reading in a fixed width file to
+specify column widths yourself.
+
+You can use some dplyr functions to check out the dataset once it's in R (there will be much more 
+about dplyr in the next section). For example, the following call prints a sample of four rows of 
+data from Hurricane Katrina, with, for each row, the date and time, maximum wind spped, minimum 
+pressure, and the radius of the maximum winds of the storm for that observation.
+```{r}
+ext_tracks %>%
+  filter(storm_name == "KATRINA") %>%
+  select(month, day, hour, max_wind, min_pressure, rad_max_wind) %>%
+  sample_n(4)
+```
+With the functions in the readr package, you can also read in flat files from secure urls (ones that 
+start with https:).(This is not true with the read.table family of functions from R.) One example 
+where it is common to find flat files on secure sites is on GitHub. If you find a file with a flat
+file extension in a GitHub repository, you can usually click on it and the choose to view the "Raw"
+version of the file, and get to the flat file version of the file.
+
+For example, the CDC Epidemic Prediction Initiative has a GitHub repository with data on Zika cases, 
+including the files on cases in Brazil. The most current file was available here:
+https://github.com/cdcepi/zika/blob/master/Brazil/COES_Microcephaly/data/COES_Microcephaly-2016-06-25.csv
+with the raw version (i.e., a flat file) available by clicking the "Raw" button on the top right of
+the first site. The file is saved on data folder with name "COES_Microcephaly-2016-06-25.csv"
+```{r}
+zika_file <- paste0("https://raw.githubusercontent.com/cdcepi/zika/master/",
+                    "Brazil/COES_Microcephaly/data/COES_Microcephaly-2016-06-25.csv")
+
+zika_brazil <- read_csv(zika_file)
+```
+```{r}
+zika_brazil %>%
+  select(location, value, unit)
+```
+#Requesting data through a web API
+
+Web APIs are growing in popularity as a way to access open data from government agencies, companies, 
+and other organizations. "API" stands for "Application Program Interface"; an API provides the rules 
+for software applications to interact. In the case of open data APIs, they provide the rules you need
+to know to write R code to request and pull data from the organization's web server into your R 
+session. Usually, some of the computational burden of querying and subsetting the data is taken on by
+the source's server, to create the subset of requested data to pass to your computer. In practice, 
+this means you can often pull the subset of data you want from a very large available dataset without 
+having to download the full dataset and load it locally into your R session.
+As an overview, the basic steps for accessing and using data from a web API when working in R are:
+1. Figure out the API rules for HTTP requests
+2. Write R code to create a request in the proper format.
+3. Send the request using GET or POST HTTP methods.
+4. Once you get back data from the request, parse it into an easier-to-use format if necessary.
+
+To get the data from an API, you should first read the organization's API documentation. An 
+organizations will post details on what data is available through their API(s), as well as how to 
+set up HTTP requests to get that data-to request the data through the API, you will typically need 
+to send the organization's web server an HTTP request using a GET or POST method. The API 
+documentation details will typically show an example GET and POST request for the API, including the
+base URL to use the possible query parameters that can be used to customize the dataset request.
+
+For example, the NASA has an API for pulling the Astronomy Picture of the Day. In their API 
+documentation, they sepcify that the base URL for the API request should be 
+"https://api.nasa.gov/planetary/apod" and that you can include parameters to specify the date of the 
+daily picture you want, whether to pull a high-resolution version of the picture, and a NOAA API key 
+you have requested from NOAA. Many organizations will require you to get an API key and use this key
+in each of your API requests. This key allows the organization to control API access, including 
+enforcing rate limits per user. API rate limits restricts how often you can request data (e.g., 
+an hourly limit of 1,000 requsts per user for NASA APIs).API keys should be kept private, so if you 
+are writing code that includes an API key, be very careful not to include the actual key in any code 
+made public (including any code in public GitHub repositories). One way to do this is to save the
+value of your key in a file named .Renviron in your home directory. This file should be a plain text 
+file and must end in a blank line. Once you've saved your API key to a global variable in that file 
+(e.g., with a line added to the .Renviron file like NOAA_API_KEY="abdafjsiopnab038), you can assign 
+the key value to an R object in an R session using the Sys.getenvfunction
+(e.g., noaa_api_key <- Sys.getenv("NOAA_API_KEY")), and then use this object (noaa_api_key) anywhere
+you would otherwise have used the character string with your API key.
+To find more R packages for accessing and exploring open data, check out the Open Data CRAN task view 
+("https://github.com/ropensci/opendata"). You can  also browse through the ROpenSci packages 
+("https://ropensci.org/packages/"), all of which have GitHub repositories where you can further 
+explore how each package works. ROpenSci is an organization with the mission to create open software 
+tools for science. If you create your own package to access data relevant to scientific research 
+through an API, consider submitting it for peer-review through ROpenSci.
+the riem package, developed by Maelle Salmon and an ROpenSci package, is an excellent and 
+straightforward example of how you can use R to pull open data through a web API. This package allows
+you to pull weather data from airports around the world directly from the Iowa Environmental Mesonet. 
+To show you how to pull data into R through an API, in this section we will walk you through code in
+the riem package or code based closely on code in the package. To get a certain set of weather data 
+from the Iowa Environmental Mesonet, you can send an HTTP request specifying a base URL,
+"https://mesonet.agron.iastate.edu/cgi-bin/request/asos.py/", as well as some parameters describing 
+the subset of dataset you want(e.g. date ranges, weather variables, output format.) Once you know the 
+rules for the names and possible values of these parameters (more on that below), you can submit an 
+HTTP GET request using GET function from the httr package.
+When you are making an HTTP request using the GET or POST functions from the httr package, you can
+include the key-value pairs for any query parameters as a list object in the query argument of the 
+function. For example, suppose you want to get wind speed in miles per hour (data="sped") 
+for Denver, CO, (station="DEN") for the month of June 2016 (year1="2016", month1="6", etc) in 
+Denver's local time zone (tz="America/Denver") and in a comma-separated file (format="comma").
+To get this weather dataset, you can run:
+```{r}
+library(httr)
+```
+```{r}
+meso_url <- "https://mesonet.agron.iastate.edu/cgi-bin/request/asos.py/"
+
+denver <- GET(url=meso_url,
+              query=list(station="DEN",
+                         data="sped",
+                         year1="2016",
+                         month1="6",
+                         day1="1",
+                         year2="2016",
+                         month2="6",
+                         day2="30",
+                         tz="America/Denver",
+                         format="comma")) %>%
+    content() %>%
+    read_csv(skip=5, na="M")
+
+denver %>% slice(1:3)
+```
+The content call in this code extracts the content from the response to the HTTP request sent by the
+GET function. The Iowa Environmental Mesonet API offers the option to return the requested data in a
+comma-separated file (format = "comma in the GET request), so here content and read_csv are used to
+extract and read in that csv file. Usually, data will be returned in a JSON format instead. We 
+include more detailed later in this section on parsing data returned in a JSON format.
+The only tricky part of this process is figuring out the available parameter names (e.g., station)
+and possible values for each (e.g., "DEN" for Denver). Currently, the details you can send in an
+HTTP request through Iowa Environmental Mesonet's API include:
+1. A four-character weather station identifier (station)
+2. The weather variables (e.g., temperature, wind speed) to include (data)
+3. Starting and ending dates describing the range for which you'd like to pull data (year1, month1, day1, year2, month2, day2).
+4. The time zone to use for date-times for the weather observations (tz)
+5. Different formatting options (e.g., delimiter to use in the resulting data file [format], whether to include longitude and latitude)
+
+Typically, these parameter names and possible values are explained in the API documentation. In some
+cases, however, the documentation will be limited. In that case, you may be able to figure out 
+possible values, especially if the API specifies a GET rather than POST method, by playing around 
+with the website's point-and-click interface and then looking at the url for the resulting data pages.
+For example, if you look at the Iowa Environmental Mesonet's page for accessing this data 
+("https://mesonet.agron.iastate.edu/request/download.phtml?network=IN__ASOS"), you'll notice that the
+point-and-click web interface allows you the options in the list above, and if you click through to
+access a dataset using this interface, the web address of the data page includes these parameter
+names and values. 
+The **riem** package implements all these ideas in three very clean and straightforward functions. You 
+can explore the code behind this package and see how these ideas can be incorporated into a small
+R package, in the /R directory of the package's GitHub page ("https://github.com/ropensci/riem")
+R packages already exist for many open data APIs. If an R package already exists for an API, you can
+use functions from that package directly, rather than writing your own code using the API protocols
+and httr functions. Other examples of existing R packages to interact with open data APIs include:
+     **twitteR**: Twitter
+     **rnoaa**: National Oceanic and Atmospheric Administration
+     **Quandl**: Quandl (financial data)
+     **RGoogleAnalytics**: Google Analytics
+     **censusr**, **acs**: United States Census
+     **WDI, wbstats**: World Bank
+     **GuardianR, rdian**: The Guardian Media Group
+     **blsAPI**: Bureau of Labor Statistics
+     **rtimes**: New York Times
+     **dataRetrieval, waterData**: United States Geological Survey
+
+If an R package doesn't exist for an open API and you'd like to write your own package, find out
+more about writing API packages with this vignette for the httr package 
+("https://cran.r-project.org/web/packages/httr/vignettes/api-packages.html"). This document includes
+advice on error handling within R code that accesses data through an open API.
+
+#Scraping web data
+
+You can also use R to pull and clean web-based data that is not accessible through a web API or as an 
+online flat file. In this case, the strategy will often be to pull in the full web page file (often 
+in HTML or XML) and then parse or clean it within R.
+
+The **rvest** package is a good entry point for handling more complex collection and cleaning of 
+web-based data. This package includes functions, for example, that allow you to select certain 
+elements from the code for a web page (e.g., using the html_node and xml_node functions), to parse 
+tables in an HTML document into R data frames (html_table), and to parse, fill out, and submit HTML
+forms (html_form, set_values, submit_form). Further details on web scraping with R are beyond the 
+scope of this course, but if you're interested, you can find out more through the rvest GitHub README
+("https://github.com/hadley/rvest").
+
+#Parsing JSON, XML, or HTML data
+
+Often, data collected from the web, including the data returned from an open API or obtained by 
+scraping a web page, will be in JSON, XML, or HTML format. To use data in a JSON, XML, or HTML format
+in R, you need to parse the file from its current format and convert it into an R object more useful 
+for analysis.
+
+Typically, JSON-, XML-, or HTML-formatted data is parsed into a list in R, since list objects allow 
+for a lot of flexibility in the structure of the data. However, if the data is structured 
+appropriately, you can often parse data into another type of object (a data frame, for example, if the
+data fits well into a two-dimensional format of rows and columns). If the data structure of the data
+that you are pulling in is complex but consistent across different observations, you may alternatively
+want to create a custom object type to parse the data into.
+
+There are a number of packages for parsing data from these formats, including jsonlite and xml2. 
+To find out more about parsing data from typical web formats, and for more on working with web-based 
+documents and data, see the CRAN task view for Web Technologies and Services.
+("https://cran.r-project.org/web/views/WebTechnologies.html")
