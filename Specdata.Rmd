@@ -167,4 +167,7 @@ cr <- corr("data/specdata", 1000)
 cr <- sort(cr)
 print(c(n, round(cr, 4)))
 ```
+```{r}
+sessionInfo()
+```
 

@@ -343,3 +343,7 @@ There are a number of packages for parsing data from these formats, including js
 To find out more about parsing data from typical web formats, and for more on working with web-based 
 documents and data, see the CRAN task view for Web Technologies and Services.
 ("https://cran.r-project.org/web/views/WebTechnologies.html")
+```{r}
+sessionInfo()
+```
+

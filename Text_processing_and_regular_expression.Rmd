@@ -338,4 +338,7 @@ word(a_tale, end=3)
 ```{r}
 word(a_tale, start=11, end=15)
 ```
+```{r}
+sessionInfo()
+```
 

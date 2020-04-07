@@ -393,3 +393,7 @@ worldcup %>%
     names in the final table, but this rename call is a quick fix since we just want to change one
     colunm name.
 
+```{r}
+sessionInfo()
+```
+
